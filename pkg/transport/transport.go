@@ -29,7 +29,8 @@ type Config struct {
 
 	ConnectTimeout time.Duration `yaml:"connect_timeout"`
 
-	// Reserved for a future QUIC backend; accepted in v1 and ignored by SCTP.
+	// Optional TLS settings. Used by QUIC and by SCTP when TLS is enabled.
+	TLS      bool   `yaml:"tls"`
 	ALPN     string `yaml:"alpn"`
 	CertFile string `yaml:"cert_file"`
 	KeyFile  string `yaml:"key_file"`

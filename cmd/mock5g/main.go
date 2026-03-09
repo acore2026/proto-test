@@ -61,6 +61,11 @@ func runAMF(ctx context.Context, args []string) error {
 	channels := fs.Int("channels", cfg.Transport.ChannelCount, "logical channel count")
 	nodelay := fs.Bool("nodelay", cfg.Transport.NoDelay, "enable nodelay")
 	heartbeatMS := fs.Int("heartbeat-ms", cfg.Transport.HeartbeatMS, "heartbeat interval ms")
+	useTLS := fs.Bool("tls", cfg.Transport.TLS, "enable TLS for the selected transport")
+	alpn := fs.String("alpn", cfg.Transport.ALPN, "TLS ALPN value")
+	certFile := fs.String("cert-file", cfg.Transport.CertFile, "TLS cert file")
+	keyFile := fs.String("key-file", cfg.Transport.KeyFile, "TLS key file")
+	caFile := fs.String("ca-file", cfg.Transport.CAFile, "TLS CA file for client verification")
 	_ = fs.Parse(args)
 
 	cfg.Transport.Type = transport.Type(*transportType)
@@ -69,6 +74,11 @@ func runAMF(ctx context.Context, args []string) error {
 	cfg.Transport.ChannelCount = *channels
 	cfg.Transport.NoDelay = *nodelay
 	cfg.Transport.HeartbeatMS = *heartbeatMS
+	cfg.Transport.TLS = *useTLS
+	cfg.Transport.ALPN = *alpn
+	cfg.Transport.CertFile = *certFile
+	cfg.Transport.KeyFile = *keyFile
+	cfg.Transport.CAFile = *caFile
 
 	server := app.AMFServer{TransportCfg: cfg.Transport}
 	return server.Run(ctx)
@@ -107,10 +117,11 @@ func runGNB(ctx context.Context, args []string) error {
 	latencyRateLimit := fs.Bool("latency-rate-limit", cfg.Run.LatencyRateLimit, "enforce --pps in latency mode")
 	nodelay := fs.Bool("nodelay", cfg.Transport.NoDelay, "enable nodelay")
 	heartbeatMS := fs.Int("heartbeat-ms", cfg.Transport.HeartbeatMS, "heartbeat interval ms")
-	alpn := fs.String("alpn", cfg.Transport.ALPN, "reserved for QUIC")
-	certFile := fs.String("cert-file", cfg.Transport.CertFile, "reserved for QUIC")
-	keyFile := fs.String("key-file", cfg.Transport.KeyFile, "reserved for QUIC")
-	caFile := fs.String("ca-file", cfg.Transport.CAFile, "reserved for QUIC")
+	useTLS := fs.Bool("tls", cfg.Transport.TLS, "enable TLS for the selected transport")
+	alpn := fs.String("alpn", cfg.Transport.ALPN, "TLS ALPN value")
+	certFile := fs.String("cert-file", cfg.Transport.CertFile, "TLS cert file")
+	keyFile := fs.String("key-file", cfg.Transport.KeyFile, "TLS key file")
+	caFile := fs.String("ca-file", cfg.Transport.CAFile, "TLS CA file for client verification")
 	_ = fs.Parse(args)
 
 	cfg.Transport.Type = transport.Type(*transportType)
@@ -121,6 +132,7 @@ func runGNB(ctx context.Context, args []string) error {
 	cfg.Transport.ChannelCount = *channels
 	cfg.Transport.NoDelay = *nodelay
 	cfg.Transport.HeartbeatMS = *heartbeatMS
+	cfg.Transport.TLS = *useTLS
 	cfg.Transport.ALPN = *alpn
 	cfg.Transport.CertFile = *certFile
 	cfg.Transport.KeyFile = *keyFile

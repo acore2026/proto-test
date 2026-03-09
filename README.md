@@ -6,6 +6,7 @@ Transport-pluggable mock gNB/AMF performance harness for SCTP-vs-QUIC benchmarki
 
 - Linux kernel SCTP backend (`--transport sctp`)
 - QUIC transport backend (`--transport quic`) via `quic-go`
+- Optional TLS over SCTP (`--transport sctp --tls`)
 - Modes:
   - `latency` (closed-loop RTT)
   - `throughput` (step-rate sweep)
@@ -50,6 +51,8 @@ NAS flood:
 - Requires Linux SCTP support in kernel.
 - QUIC uses TLS 1.3. If `--cert-file` and `--key-file` are not provided on AMF, a self-signed cert is generated in-memory.
 - For quick local testing, QUIC client skips cert verification unless `--ca-file` is provided.
+- SCTP can also use TLS 1.3 with `--tls` to align encryption overhead with QUIC tests.
+- TLS cert/CA flags (`--cert-file`, `--key-file`, `--ca-file`, `--alpn`) apply to both QUIC and TLS-over-SCTP.
 - For fair SCTP vs QUIC latency comparisons, keep `--latency-rate-limit` enabled (default) so `--pps` is enforced in latency mode.
 
 ## Quick Test Scripts

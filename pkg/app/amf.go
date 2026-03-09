@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"mock5g/pkg/transport"
 	"mock5g/pkg/transport/backend"
@@ -37,7 +38,10 @@ func (s AMFServer) Run(ctx context.Context) error {
 				wg.Wait()
 				return nil
 			}
-			return err
+			// Handshake and accept failures should not terminate the whole AMF.
+			fmt.Printf("amf accept error: %v\n", err)
+			time.Sleep(50 * time.Millisecond)
+			continue
 		}
 		wg.Add(1)
 		go func() {

@@ -2,8 +2,17 @@ package sctp
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
 	"fmt"
+	"math/big"
 	"net"
+	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -13,12 +22,14 @@ import (
 )
 
 type listener struct {
-	ln *isctp.SCTPListener
+	ln  *isctp.SCTPListener
+	cfg transport.Config
 }
 
 type session struct {
 	cfg      transport.Config
 	conn     *isctp.SCTPConn
+	rw       net.Conn
 	readMu   sync.Mutex
 	writeMu  sync.Mutex
 	closedMu sync.Mutex
@@ -39,7 +50,7 @@ func Listen(_ context.Context, cfg transport.Config) (transport.Listener, error)
 	if err != nil {
 		return nil, fmt.Errorf("listen sctp: %w", err)
 	}
-	return &listener{ln: ln}, nil
+	return &listener{ln: ln, cfg: cfg}, nil
 }
 
 func (l *listener) Accept(ctx context.Context) (transport.Session, error) {
@@ -60,7 +71,15 @@ func (l *listener) Accept(ctx context.Context) (transport.Session, error) {
 		if res.err != nil {
 			return nil, res.err
 		}
-		return &session{conn: res.conn, cfg: transport.Config{}}, nil
+		s := &session{conn: res.conn, rw: res.conn, cfg: l.cfg}
+		s.applyTunables()
+		if s.cfg.TLS {
+			if err := s.enableServerTLS(ctx); err != nil {
+				_ = s.conn.Close()
+				return nil, err
+			}
+		}
+		return s, nil
 	}
 }
 
@@ -102,8 +121,14 @@ func Dial(ctx context.Context, cfg transport.Config) (transport.Session, error) 
 		if res.err != nil {
 			return nil, fmt.Errorf("dial sctp: %w", res.err)
 		}
-		s := &session{cfg: cfg, conn: res.conn}
+		s := &session{cfg: cfg, conn: res.conn, rw: res.conn}
 		s.applyTunables()
+		if s.cfg.TLS {
+			if err := s.enableClientTLS(ctx); err != nil {
+				_ = s.conn.Close()
+				return nil, err
+			}
+		}
 		return s, nil
 	}
 }
@@ -141,11 +166,11 @@ func (s *session) Close() error {
 		return nil
 	}
 	s.closed = true
-	return s.conn.Close()
+	return s.rw.Close()
 }
 
 func (s *session) RemoteAddr() string {
-	ra := s.conn.RemoteAddr()
+	ra := s.rw.RemoteAddr()
 	if ra == nil {
 		return ""
 	}
@@ -158,11 +183,11 @@ func (c *channel) Send(ctx context.Context, payload []byte) error {
 	c.s.writeMu.Lock()
 	defer c.s.writeMu.Unlock()
 	if deadline, ok := ctx.Deadline(); ok {
-		_ = c.s.conn.SetWriteDeadline(deadline)
+		_ = c.s.rw.SetWriteDeadline(deadline)
 	} else {
-		_ = c.s.conn.SetWriteDeadline(time.Time{})
+		_ = c.s.rw.SetWriteDeadline(time.Time{})
 	}
-	_, err := c.s.conn.Write(payload)
+	_, err := c.s.rw.Write(payload)
 	if ne, ok := err.(net.Error); ok && ne.Timeout() {
 		return context.DeadlineExceeded
 	}
@@ -173,12 +198,12 @@ func (c *channel) Recv(ctx context.Context) ([]byte, error) {
 	c.s.readMu.Lock()
 	defer c.s.readMu.Unlock()
 	if deadline, ok := ctx.Deadline(); ok {
-		_ = c.s.conn.SetReadDeadline(deadline)
+		_ = c.s.rw.SetReadDeadline(deadline)
 	} else {
-		_ = c.s.conn.SetReadDeadline(time.Time{})
+		_ = c.s.rw.SetReadDeadline(time.Time{})
 	}
 	buf := make([]byte, 64*1024)
-	n, err := c.s.conn.Read(buf)
+	n, err := c.s.rw.Read(buf)
 	if ne, ok := err.(net.Error); ok && ne.Timeout() {
 		return nil, context.DeadlineExceeded
 	}
@@ -192,4 +217,145 @@ func (c *channel) Recv(ctx context.Context) ([]byte, error) {
 
 func (c *channel) Close() error {
 	return nil
+}
+
+func (s *session) enableServerTLS(ctx context.Context) error {
+	cfg, err := sctpServerTLSConfig(s.cfg)
+	if err != nil {
+		return err
+	}
+	tc := tls.Server(s.conn, cfg)
+	if err := handshakeWithContext(ctx, tc, s.cfg.ConnectTimeout); err != nil {
+		return fmt.Errorf("sctp tls server handshake: %w", err)
+	}
+	s.rw = tc
+	return nil
+}
+
+func (s *session) enableClientTLS(ctx context.Context) error {
+	cfg, err := sctpClientTLSConfig(s.cfg)
+	if err != nil {
+		return err
+	}
+	tc := tls.Client(s.conn, cfg)
+	if err := handshakeWithContext(ctx, tc, s.cfg.ConnectTimeout); err != nil {
+		return fmt.Errorf("sctp tls client handshake: %w", err)
+	}
+	s.rw = tc
+	return nil
+}
+
+func handshakeWithContext(ctx context.Context, tc *tls.Conn, timeout time.Duration) error {
+	hctx := ctx
+	cancel := func() {}
+	if timeout > 0 {
+		hctx, cancel = context.WithTimeout(ctx, timeout)
+	}
+	defer cancel()
+	return tc.HandshakeContext(hctx)
+}
+
+func sctpServerTLSConfig(cfg transport.Config) (*tls.Config, error) {
+	alpn := defaultALPN(cfg)
+	var cert tls.Certificate
+	var err error
+	if cfg.CertFile != "" || cfg.KeyFile != "" {
+		if cfg.CertFile == "" || cfg.KeyFile == "" {
+			return nil, fmt.Errorf("both cert_file and key_file are required")
+		}
+		cert, err = tls.LoadX509KeyPair(cfg.CertFile, cfg.KeyFile)
+		if err != nil {
+			return nil, fmt.Errorf("load x509 key pair: %w", err)
+		}
+	} else {
+		cert, err = generateSelfSignedCert(pickIP(cfg.LocalIP, "127.0.0.1"))
+		if err != nil {
+			return nil, err
+		}
+	}
+	tlsCfg := &tls.Config{
+		MinVersion:   tls.VersionTLS13,
+		Certificates: []tls.Certificate{cert},
+	}
+	if strings.TrimSpace(alpn) != "" {
+		tlsCfg.NextProtos = []string{alpn}
+	}
+	return tlsCfg, nil
+}
+
+func sctpClientTLSConfig(cfg transport.Config) (*tls.Config, error) {
+	alpn := defaultALPN(cfg)
+	tlsCfg := &tls.Config{
+		MinVersion: tls.VersionTLS13,
+		ServerName: cfg.RemoteIP,
+	}
+	if strings.TrimSpace(alpn) != "" {
+		tlsCfg.NextProtos = []string{alpn}
+	}
+	if cfg.CAFile == "" {
+		tlsCfg.InsecureSkipVerify = true
+		return tlsCfg, nil
+	}
+	caPEM, err := os.ReadFile(cfg.CAFile)
+	if err != nil {
+		return nil, fmt.Errorf("read ca file: %w", err)
+	}
+	roots := x509.NewCertPool()
+	if !roots.AppendCertsFromPEM(caPEM) {
+		return nil, fmt.Errorf("append CA cert failed")
+	}
+	tlsCfg.RootCAs = roots
+	return tlsCfg, nil
+}
+
+func defaultALPN(cfg transport.Config) string {
+	if strings.TrimSpace(cfg.ALPN) != "" {
+		return cfg.ALPN
+	}
+	return "mock5g-v1"
+}
+
+func pickIP(ip, fallback string) string {
+	if strings.TrimSpace(ip) == "" {
+		return fallback
+	}
+	return ip
+}
+
+func generateSelfSignedCert(host string) (tls.Certificate, error) {
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return tls.Certificate{}, fmt.Errorf("generate rsa key: %w", err)
+	}
+	serial, err := rand.Int(rand.Reader, big.NewInt(1<<62))
+	if err != nil {
+		return tls.Certificate{}, fmt.Errorf("generate serial: %w", err)
+	}
+	template := &x509.Certificate{
+		SerialNumber: serial,
+		Subject: pkix.Name{
+			CommonName: "mock5g-sctp-tls",
+		},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().Add(365 * 24 * time.Hour),
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		template.IPAddresses = []net.IP{ip}
+	} else if host != "" {
+		template.DNSNames = []string{host}
+	}
+	der, err := x509.CreateCertificate(rand.Reader, template, template, &priv.PublicKey, priv)
+	if err != nil {
+		return tls.Certificate{}, fmt.Errorf("create cert: %w", err)
+	}
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)})
+	cert, err := tls.X509KeyPair(certPEM, keyPEM)
+	if err != nil {
+		return tls.Certificate{}, fmt.Errorf("x509 key pair: %w", err)
+	}
+	return cert, nil
 }

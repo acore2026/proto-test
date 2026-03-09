@@ -48,6 +48,7 @@ func Default() Config {
 			NoDelay:        true,
 			HeartbeatMS:    30000,
 			ConnectTimeout: 5 * time.Second,
+			TLS:            false,
 		},
 		Run: RunConfig{
 			Mode:             "latency",

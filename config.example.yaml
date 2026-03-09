@@ -10,8 +10,9 @@ transport:
   read_buffer: 0
   write_buffer: 0
   connect_timeout: 5s
+  tls: false
 
-  # QUIC placeholder fields (ignored by SCTP backend)
+  # TLS settings used by QUIC and by SCTP when tls=true
   alpn: "mock5g-v1"
   cert_file: ""
   key_file: ""
