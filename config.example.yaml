@@ -1,0 +1,35 @@
+transport:
+  type: sctp
+  local_ip: 127.0.0.1
+  local_port: 38412
+  remote_ip: 127.0.0.1
+  remote_port: 38412
+  channel_count: 1
+  nodelay: true
+  heartbeat_ms: 30000
+  read_buffer: 0
+  write_buffer: 0
+  connect_timeout: 5s
+
+  # QUIC placeholder fields (ignored by SCTP backend)
+  alpn: "mock5g-v1"
+  cert_file: ""
+  key_file: ""
+  ca_file: ""
+
+run:
+  mode: latency
+  duration: 10s
+  warmup: 2s
+  step_duration: 5s
+  step_count: 5
+  step_pps: 1000
+  step_start_pps: 1000
+  step_increment: 1000
+  pps: 1000
+  workers: 1
+  channel_count: 1
+  output_csv: summary.csv
+  nas_template: ""
+  nas_hex: false
+  recv_timeout: 1s
