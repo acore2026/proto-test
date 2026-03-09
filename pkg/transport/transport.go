@@ -9,17 +9,18 @@ import (
 type Type string
 
 const (
-	TypeSCTP Type = "sctp"
-	TypeQUIC Type = "quic"
+	TypeSCTP       Type = "sctp"
+	TypeSCTPKernel Type = "sctp-kernel"
+	TypeQUIC       Type = "quic"
 )
 
 type Config struct {
 	Type Type `yaml:"type"`
 
-	LocalIP   string `yaml:"local_ip"`
-	LocalPort int    `yaml:"local_port"`
-	RemoteIP  string `yaml:"remote_ip"`
-	RemotePort int   `yaml:"remote_port"`
+	LocalIP    string `yaml:"local_ip"`
+	LocalPort  int    `yaml:"local_port"`
+	RemoteIP   string `yaml:"remote_ip"`
+	RemotePort int    `yaml:"remote_port"`
 
 	ChannelCount int  `yaml:"channel_count"`
 	NoDelay      bool `yaml:"nodelay"`

@@ -1,4 +1,5 @@
 transport:
+  # valid values: sctp | sctp-kernel | quic
   type: sctp
   local_ip: 127.0.0.1
   local_port: 38412
@@ -12,7 +13,7 @@ transport:
   connect_timeout: 5s
   tls: false
 
-  # TLS settings used by QUIC and by SCTP when tls=true
+  # TLS settings used by QUIC and by SCTP variants when tls=true
   alpn: "mock5g-v1"
   cert_file: ""
   key_file: ""

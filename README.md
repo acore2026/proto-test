@@ -4,9 +4,10 @@ Transport-pluggable mock gNB/AMF performance harness for SCTP-vs-QUIC benchmarki
 
 ## Features
 
-- Linux kernel SCTP backend (`--transport sctp`)
+- SCTP transport via Go SCTP library (`--transport sctp`)
+- Linux kernel SCTP socket transport (`--transport sctp-kernel`, Linux only)
 - QUIC transport backend (`--transport quic`) via `quic-go`
-- Optional TLS over SCTP (`--transport sctp --tls`)
+- Optional TLS over SCTP (`--transport sctp --tls` or `--transport sctp-kernel --tls`)
 - Modes:
   - `latency` (closed-loop RTT)
   - `throughput` (step-rate sweep)
@@ -26,6 +27,12 @@ Start AMF server:
 
 ```bash
 ./mock5g amf --transport sctp --listen-ip 127.0.0.1 --listen-port 38412
+```
+
+Start AMF server with Linux kernel SCTP sockets:
+
+```bash
+./mock5g amf --transport sctp-kernel --listen-ip 127.0.0.1 --listen-port 38412
 ```
 
 Latency run:
@@ -48,7 +55,8 @@ NAS flood:
 
 ## Notes
 
-- Requires Linux SCTP support in kernel.
+- `sctp-kernel` requires Linux with SCTP kernel support enabled.
+- `sctp` uses the project SCTP library backend (portable Go integration).
 - QUIC uses TLS 1.3. If `--cert-file` and `--key-file` are not provided on AMF, a self-signed cert is generated in-memory.
 - For quick local testing, QUIC client skips cert verification unless `--ca-file` is provided.
 - SCTP can also use TLS 1.3 with `--tls` to align encryption overhead with QUIC tests.
@@ -109,6 +117,14 @@ Protocol comparison helper:
 ```
 
 This runs `1 AMF + N gNB` for SCTP and QUIC with identical settings, then prints an aggregated summary and writes per-runner logs/CSVs under a timestamped `runlogs/compare_*` folder.
+
+Scaling helper with CPU monitoring:
+
+```bash
+./scripts/scale_test.sh --transport quic --counts 4,16,64,256 --duration 10s --pps 1000
+```
+
+This runs scaling scenarios (`gNB=4,16,64,256` by default), captures protocol metrics, and records AMF / aggregated gNB CPU usage in `cpu_monitor.csv` per scenario plus a consolidated `summary.csv`.
 
 ## GitHub Automation
 

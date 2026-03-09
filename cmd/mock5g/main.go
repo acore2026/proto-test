@@ -55,7 +55,7 @@ func runAMF(ctx context.Context, args []string) error {
 
 	fs := flag.NewFlagSet("amf", flag.ExitOnError)
 	_ = fs.String("config", "", "path to YAML config")
-	transportType := fs.String("transport", string(cfg.Transport.Type), "transport type: sctp|quic")
+	transportType := fs.String("transport", string(cfg.Transport.Type), "transport type: sctp|sctp-kernel|quic")
 	listenIP := fs.String("listen-ip", cfg.Transport.LocalIP, "listen IP")
 	listenPort := fs.Int("listen-port", cfg.Transport.LocalPort, "listen port")
 	channels := fs.Int("channels", cfg.Transport.ChannelCount, "logical channel count")
@@ -97,7 +97,7 @@ func runGNB(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("gnb", flag.ExitOnError)
 	_ = fs.String("config", "", "path to YAML config")
 	mode := fs.String("mode", cfg.Run.Mode, "run mode: latency|throughput|flood")
-	transportType := fs.String("transport", string(cfg.Transport.Type), "transport type: sctp|quic")
+	transportType := fs.String("transport", string(cfg.Transport.Type), "transport type: sctp|sctp-kernel|quic")
 	remoteIP := fs.String("remote-ip", cfg.Transport.RemoteIP, "remote AMF IP")
 	remotePort := fs.Int("remote-port", cfg.Transport.RemotePort, "remote AMF port")
 	localIP := fs.String("local-ip", cfg.Transport.LocalIP, "local bind IP")
