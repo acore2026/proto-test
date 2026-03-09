@@ -130,9 +130,9 @@ func (c *channel) Send(ctx context.Context, payload []byte) error {
 	if err := setWriteDeadline(c.stream, ctx); err != nil {
 		return err
 	}
-	header := make([]byte, 4)
-	binary.BigEndian.PutUint32(header, uint32(len(payload)))
-	if _, err := writeAll(c.stream, header); err != nil {
+	var header [4]byte
+	binary.BigEndian.PutUint32(header[:], uint32(len(payload)))
+	if _, err := writeAll(c.stream, header[:]); err != nil {
 		return err
 	}
 	if _, err := writeAll(c.stream, payload); err != nil {
@@ -145,11 +145,11 @@ func (c *channel) Recv(ctx context.Context) ([]byte, error) {
 	if err := setReadDeadline(c.stream, ctx); err != nil {
 		return nil, err
 	}
-	header := make([]byte, 4)
-	if _, err := io.ReadFull(c.stream, header); err != nil {
+	var header [4]byte
+	if _, err := io.ReadFull(c.stream, header[:]); err != nil {
 		return nil, err
 	}
-	size := binary.BigEndian.Uint32(header)
+	size := binary.BigEndian.Uint32(header[:])
 	if size > maxQUICFrameSize {
 		return nil, fmt.Errorf("incoming payload too large: %d", size)
 	}
@@ -166,7 +166,14 @@ func (c *channel) Close() error {
 
 func quicConfig(cfg transport.Config) *q.Config {
 	qcfg := &q.Config{
-		EnableDatagrams: false,
+		EnableDatagrams:                false,
+		DisablePathMTUDiscovery:        true,
+		HandshakeIdleTimeout:           3 * time.Second,
+		InitialStreamReceiveWindow:     64 * 1024,
+		MaxStreamReceiveWindow:         256 * 1024,
+		InitialConnectionReceiveWindow: 256 * 1024,
+		MaxConnectionReceiveWindow:     1024 * 1024,
+		MaxIncomingUniStreams:          -1,
 	}
 	if cfg.HeartbeatMS > 0 {
 		qcfg.KeepAlivePeriod = time.Duration(cfg.HeartbeatMS) * time.Millisecond

@@ -1,7 +1,6 @@
 package wire
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 )
@@ -31,47 +30,44 @@ func (f Frame) Encode() ([]byte, error) {
 	if len(f.Payload) > 0xFFFF {
 		return nil, fmt.Errorf("payload too large: %d", len(f.Payload))
 	}
-	buf := bytes.NewBuffer(make([]byte, 0, 4+1+1+8+8+2+2+len(f.Payload)))
-	_ = binary.Write(buf, binary.BigEndian, Magic)
-	_ = binary.Write(buf, binary.BigEndian, Version)
-	_ = binary.Write(buf, binary.BigEndian, uint8(f.MsgType))
-	_ = binary.Write(buf, binary.BigEndian, f.SeqID)
-	_ = binary.Write(buf, binary.BigEndian, f.SendTSNS)
-	_ = binary.Write(buf, binary.BigEndian, f.ChannelID)
-	_ = binary.Write(buf, binary.BigEndian, uint16(len(f.Payload)))
-	_, _ = buf.Write(f.Payload)
-	return buf.Bytes(), nil
+	out := make([]byte, 26+len(f.Payload))
+	binary.BigEndian.PutUint32(out[0:4], Magic)
+	out[4] = Version
+	out[5] = byte(f.MsgType)
+	binary.BigEndian.PutUint64(out[6:14], f.SeqID)
+	binary.BigEndian.PutUint64(out[14:22], uint64(f.SendTSNS))
+	binary.BigEndian.PutUint16(out[22:24], f.ChannelID)
+	binary.BigEndian.PutUint16(out[24:26], uint16(len(f.Payload)))
+	copy(out[26:], f.Payload)
+	return out, nil
 }
 
 func Decode(input []byte) (Frame, error) {
 	if len(input) < 26 {
 		return Frame{}, fmt.Errorf("frame too short: %d", len(input))
 	}
-	var f Frame
-	r := bytes.NewReader(input)
-	var magic uint32
-	var version uint8
-	var typ uint8
-	var plen uint16
-	_ = binary.Read(r, binary.BigEndian, &magic)
-	_ = binary.Read(r, binary.BigEndian, &version)
-	_ = binary.Read(r, binary.BigEndian, &typ)
-	_ = binary.Read(r, binary.BigEndian, &f.SeqID)
-	_ = binary.Read(r, binary.BigEndian, &f.SendTSNS)
-	_ = binary.Read(r, binary.BigEndian, &f.ChannelID)
-	_ = binary.Read(r, binary.BigEndian, &plen)
-
+	magic := binary.BigEndian.Uint32(input[0:4])
 	if magic != Magic {
 		return Frame{}, fmt.Errorf("bad magic: %x", magic)
 	}
+	version := input[4]
 	if version != Version {
 		return Frame{}, fmt.Errorf("bad version: %d", version)
 	}
+	typ := input[5]
+	seqID := binary.BigEndian.Uint64(input[6:14])
+	sendTS := int64(binary.BigEndian.Uint64(input[14:22]))
+	chID := binary.BigEndian.Uint16(input[22:24])
+	plen := binary.BigEndian.Uint16(input[24:26])
 	if len(input) < 26+int(plen) {
 		return Frame{}, fmt.Errorf("truncated payload")
 	}
-	f.MsgType = MsgType(typ)
-	f.Payload = make([]byte, int(plen))
-	copy(f.Payload, input[26:26+int(plen)])
-	return f, nil
+	return Frame{
+		MsgType:   MsgType(typ),
+		SeqID:     seqID,
+		SendTSNS:  sendTS,
+		ChannelID: chID,
+		// Zero-copy payload view over input to avoid extra allocation.
+		Payload: input[26 : 26+int(plen)],
+	}, nil
 }

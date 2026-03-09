@@ -70,7 +70,7 @@ run_protocol() {
       --workers "$WORKERS" \
       --channels "$CHANNELS" \
       --pps "$PPS" \
-      --latency-rate-limit "$LATENCY_RATE_LIMIT" \
+      --latency-rate-limit="$LATENCY_RATE_LIMIT" \
       --out-csv "$runner_csv" > "$runner_log" 2>&1 &
     pids+=("$!")
   done
