@@ -33,6 +33,7 @@ jobs:
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
+          TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
           mkdir -p dist
@@ -40,19 +41,42 @@ jobs:
           if [ "$GOOS" = "windows" ]; then
             ext=".exe"
           fi
-          bin_name="mock5g${ext}"
-          out_dir="dist/mock5g_${GOOS}_${GOARCH}"
-          mkdir -p "$out_dir"
-          go build -trimpath -ldflags "-s -w" -o "$out_dir/$bin_name" ./cmd/mock5g
+          bundle="mock5g_${TAG}_${GOOS}_${GOARCH}"
+          out_dir="dist/${bundle}"
+          mkdir -p "$out_dir/bin" "$out_dir/scripts" "$out_dir/config"
+
+          # Binary
+          go build -trimpath -ldflags "-s -w" -o "$out_dir/bin/mock5g${ext}" ./cmd/mock5g
+
+          # Ready-to-use operational files
+          cp -r scripts/*.sh "$out_dir/scripts/"
+          cp config.example.yaml "$out_dir/config/config.example.yaml"
+          cp README.md "$out_dir/README.md"
+
+          cat > "$out_dir/QUICKSTART.txt" <<QS
+          mock5g ${TAG} (${GOOS}/${GOARCH})
+
+          1) Start AMF:
+             ./bin/mock5g${ext} amf --transport sctp --listen-ip 0.0.0.0 --listen-port 38412
+
+          2) Run a gNB latency test:
+             ./bin/mock5g${ext} gnb --mode latency --transport sctp --remote-ip <amf-ip> --remote-port 38412 --duration 30s --pps 1000 --out-csv run.csv
+
+          3) Use helper scripts:
+             ./scripts/start_amf.sh
+             ./scripts/start_runners.sh --count 8 --mode latency --remote-ip <amf-ip> --remote-port 38412 --duration 30s --pps 1000
+             ./scripts/compare_protocols.sh --gnb-count 8 --duration 8s --pps 1000 --mode latency --latency-rate-limit true
+          QS
 
       - name: Package artifact
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
+          TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
           cd dist
-          base="mock5g_${GOOS}_${GOARCH}"
+          base="mock5g_${TAG}_${GOOS}_${GOARCH}"
           if [ "$GOOS" = "windows" ]; then
             zip -r "${base}.zip" "$base"
           else
@@ -63,6 +87,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/mock5g_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz
-            dist/mock5g_${{ matrix.goos }}_${{ matrix.goarch }}.zip
+            dist/mock5g_${{ github.ref_name }}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz
+            dist/mock5g_${{ github.ref_name }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
           fail_on_unmatched_files: false

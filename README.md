@@ -114,7 +114,7 @@ This runs `1 AMF + N gNB` for SCTP and QUIC with identical settings, then prints
 - Release workflow: `.github/workflows/release.yml`
   - Triggers when pushing tags matching `v*` (for example `v1.0.0`).
   - Builds `mock5g` binaries for `linux/darwin/windows` and `amd64/arm64`.
-  - Uploads archives as GitHub Release assets automatically.
+  - Uploads ready-to-use archives containing `bin/`, `scripts/`, `config/config.example.yaml`, `README.md`, and `QUICKSTART.txt`.
 
 Create a release tag:
 
