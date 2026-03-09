@@ -20,8 +20,17 @@ jobs:
       - name: Download dependencies
         run: go mod download
 
-      - name: Build
-        run: go build ./...
-
       - name: Test
         run: go test ./...
+
+      - name: Build
+        run: |
+          mkdir -p dist
+          go build -o dist/myapp ./...
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: myapp-linux-amd64
+          path: dist/
+          retention-days: 7
