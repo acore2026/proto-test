@@ -20,16 +20,20 @@ jobs:
       - name: Download dependencies
         run: go mod download
 
+      - name: Build
+        run: go build ./...
+
       - name: Test
         run: go test ./...
 
-      - name: Build binary
+      - name: Build CI binary
         run: |
           mkdir -p dist
-          go build -o dist/myapp ./cmd/myapp
+          go build -o dist/mock5g ./cmd/mock5g
 
-      - name: Upload artifact
+      - name: Upload CI artifact
         uses: actions/upload-artifact@v4
         with:
-          name: myapp-linux-amd64
-          path: dist/
+          name: mock5g-ci-linux-amd64
+          path: dist/mock5g
+          if-no-files-found: error
