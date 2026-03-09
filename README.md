@@ -96,3 +96,19 @@ Start runners on a remote server over SSH:
 ```
 
 Logs and CSV files are written under `runlogs/` by default.
+
+## GitHub Automation
+
+- CI workflow: `.github/workflows/ci.yml`
+  - Runs `go build ./...` and `go test ./...` on pushes to `main` and pull requests.
+- Release workflow: `.github/workflows/release.yml`
+  - Triggers when pushing tags matching `v*` (for example `v1.0.0`).
+  - Builds `mock5g` binaries for `linux/darwin/windows` and `amd64/arm64`.
+  - Uploads archives as GitHub Release assets automatically.
+
+Create a release tag:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```

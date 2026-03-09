@@ -1,0 +1,68 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        goos: [linux, darwin, windows]
+        goarch: [amd64, arm64]
+        exclude:
+          - goos: windows
+            goarch: arm64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build artifact
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          ext=""
+          if [ "$GOOS" = "windows" ]; then
+            ext=".exe"
+          fi
+          bin_name="mock5g${ext}"
+          out_dir="dist/mock5g_${GOOS}_${GOARCH}"
+          mkdir -p "$out_dir"
+          go build -trimpath -ldflags "-s -w" -o "$out_dir/$bin_name" ./cmd/mock5g
+
+      - name: Package artifact
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          set -euo pipefail
+          cd dist
+          base="mock5g_${GOOS}_${GOARCH}"
+          if [ "$GOOS" = "windows" ]; then
+            zip -r "${base}.zip" "$base"
+          else
+            tar -czf "${base}.tar.gz" "$base"
+          fi
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/mock5g_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz
+            dist/mock5g_${{ matrix.goos }}_${{ matrix.goarch }}.zip
+          fail_on_unmatched_files: false
