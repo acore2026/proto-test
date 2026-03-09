@@ -16,23 +16,24 @@ type Config struct {
 }
 
 type RunConfig struct {
-	Mode          string        `yaml:"mode"`
-	Duration      time.Duration `yaml:"duration"`
-	Warmup        time.Duration `yaml:"warmup"`
-	StepDuration  time.Duration `yaml:"step_duration"`
-	StepPPS       int           `yaml:"step_pps"`
-	StepCount     int           `yaml:"step_count"`
-	BasePPS       int           `yaml:"base_pps"`
-	PPS           int           `yaml:"pps"`
-	Workers       int           `yaml:"workers"`
-	ChannelCount  int           `yaml:"channel_count"`
-	OutputCSV     string        `yaml:"output_csv"`
-	NASPath       string        `yaml:"nas_template"`
-	NASHex        bool          `yaml:"nas_hex"`
-	RecvTimeout   time.Duration `yaml:"recv_timeout"`
-	ConnectWait   time.Duration `yaml:"connect_wait"`
-	StepStartPPS  int           `yaml:"step_start_pps"`
-	StepIncrement int           `yaml:"step_increment"`
+	Mode             string        `yaml:"mode"`
+	Duration         time.Duration `yaml:"duration"`
+	Warmup           time.Duration `yaml:"warmup"`
+	StepDuration     time.Duration `yaml:"step_duration"`
+	StepPPS          int           `yaml:"step_pps"`
+	StepCount        int           `yaml:"step_count"`
+	BasePPS          int           `yaml:"base_pps"`
+	PPS              int           `yaml:"pps"`
+	Workers          int           `yaml:"workers"`
+	ChannelCount     int           `yaml:"channel_count"`
+	OutputCSV        string        `yaml:"output_csv"`
+	NASPath          string        `yaml:"nas_template"`
+	NASHex           bool          `yaml:"nas_hex"`
+	RecvTimeout      time.Duration `yaml:"recv_timeout"`
+	ConnectWait      time.Duration `yaml:"connect_wait"`
+	StepStartPPS     int           `yaml:"step_start_pps"`
+	StepIncrement    int           `yaml:"step_increment"`
+	LatencyRateLimit bool          `yaml:"latency_rate_limit"`
 }
 
 func Default() Config {
@@ -49,21 +50,22 @@ func Default() Config {
 			ConnectTimeout: 5 * time.Second,
 		},
 		Run: RunConfig{
-			Mode:          "latency",
-			Duration:      10 * time.Second,
-			Warmup:        2 * time.Second,
-			StepDuration:  5 * time.Second,
-			StepPPS:       1000,
-			StepCount:     5,
-			BasePPS:       1000,
-			PPS:           1000,
-			Workers:       1,
-			ChannelCount:  1,
-			OutputCSV:     "summary.csv",
-			RecvTimeout:   1 * time.Second,
-			ConnectWait:   5 * time.Second,
-			StepStartPPS:  1000,
-			StepIncrement: 1000,
+			Mode:             "latency",
+			Duration:         10 * time.Second,
+			Warmup:           2 * time.Second,
+			StepDuration:     5 * time.Second,
+			StepPPS:          1000,
+			StepCount:        5,
+			BasePPS:          1000,
+			PPS:              1000,
+			Workers:          1,
+			ChannelCount:     1,
+			OutputCSV:        "summary.csv",
+			RecvTimeout:      1 * time.Second,
+			ConnectWait:      5 * time.Second,
+			StepStartPPS:     1000,
+			StepIncrement:    1000,
+			LatencyRateLimit: true,
 		},
 	}
 }

@@ -11,6 +11,7 @@ Transport-pluggable mock gNB/AMF performance harness for SCTP-vs-QUIC benchmarki
   - `throughput` (step-rate sweep)
   - `flood` (custom NAS payload flood)
 - CSV output with throughput, drops, and RTT percentiles
+  - drop columns include reason breakdown (`drop_timeout`, `drop_send_err`, `drop_decode`, `drop_mismatch`, `drop_other`)
 
 ## Build
 
@@ -49,6 +50,7 @@ NAS flood:
 - Requires Linux SCTP support in kernel.
 - QUIC uses TLS 1.3. If `--cert-file` and `--key-file` are not provided on AMF, a self-signed cert is generated in-memory.
 - For quick local testing, QUIC client skips cert verification unless `--ca-file` is provided.
+- For fair SCTP vs QUIC latency comparisons, keep `--latency-rate-limit` enabled (default) so `--pps` is enforced in latency mode.
 
 ## Quick Test Scripts
 
@@ -96,6 +98,14 @@ Start runners on a remote server over SSH:
 ```
 
 Logs and CSV files are written under `runlogs/` by default.
+
+Protocol comparison helper:
+
+```bash
+./scripts/compare_protocols.sh --gnb-count 8 --duration 8s --pps 1000 --mode latency --latency-rate-limit true
+```
+
+This runs `1 AMF + N gNB` for SCTP and QUIC with identical settings, then prints an aggregated summary and writes per-runner logs/CSVs under a timestamped `runlogs/compare_*` folder.
 
 ## GitHub Automation
 

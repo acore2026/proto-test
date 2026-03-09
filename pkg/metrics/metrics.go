@@ -11,26 +11,35 @@ import (
 )
 
 type Snapshot struct {
-	Timestamp   time.Time
-	Mode        string
-	Transport   string
-	TargetPPS   int
-	AchievedPPS int
-	Tx          uint64
-	Rx          uint64
-	Drop        uint64
-	P50US       int64
-	P95US       int64
-	P99US       int64
-	Channels    int
+	Timestamp    time.Time
+	Mode         string
+	Transport    string
+	TargetPPS    int
+	AchievedPPS  int
+	Tx           uint64
+	Rx           uint64
+	Drop         uint64
+	DropTimeout  uint64
+	DropSendErr  uint64
+	DropDecode   uint64
+	DropMismatch uint64
+	DropOther    uint64
+	P50US        int64
+	P95US        int64
+	P99US        int64
+	Channels     int
 }
 
 type Collector struct {
-	mu        sync.Mutex
-	tx        uint64
-	rx        uint64
-	drop      uint64
-	latencyUS []int64
+	mu           sync.Mutex
+	tx           uint64
+	rx           uint64
+	dropTimeout  uint64
+	dropSendErr  uint64
+	dropDecode   uint64
+	dropMismatch uint64
+	dropOther    uint64
+	latencyUS    []int64
 }
 
 func (c *Collector) AddTx(n uint64) {
@@ -48,7 +57,31 @@ func (c *Collector) AddRx(n uint64) {
 func (c *Collector) AddDrop(n uint64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.drop += n
+	c.dropOther += n
+}
+
+func (c *Collector) AddDropTimeout(n uint64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.dropTimeout += n
+}
+
+func (c *Collector) AddDropSendErr(n uint64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.dropSendErr += n
+}
+
+func (c *Collector) AddDropDecode(n uint64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.dropDecode += n
+}
+
+func (c *Collector) AddDropMismatch(n uint64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.dropMismatch += n
 }
 
 func (c *Collector) AddLatency(d time.Duration) {
@@ -65,23 +98,25 @@ func (c *Collector) Snapshot(mode, transport string, targetPPS, channels int, si
 	if since > 0 {
 		achieved = int(float64(c.rx) / since.Seconds())
 	}
-	drop := c.drop
-	if c.tx > c.rx {
-		drop += c.tx - c.rx
-	}
+	drop := c.dropTimeout + c.dropSendErr + c.dropDecode + c.dropMismatch + c.dropOther
 	return Snapshot{
-		Timestamp:   time.Now(),
-		Mode:        mode,
-		Transport:   transport,
-		TargetPPS:   targetPPS,
-		AchievedPPS: achieved,
-		Tx:          c.tx,
-		Rx:          c.rx,
-		Drop:        drop,
-		P50US:       p50,
-		P95US:       p95,
-		P99US:       p99,
-		Channels:    channels,
+		Timestamp:    time.Now(),
+		Mode:         mode,
+		Transport:    transport,
+		TargetPPS:    targetPPS,
+		AchievedPPS:  achieved,
+		Tx:           c.tx,
+		Rx:           c.rx,
+		Drop:         drop,
+		DropTimeout:  c.dropTimeout,
+		DropSendErr:  c.dropSendErr,
+		DropDecode:   c.dropDecode,
+		DropMismatch: c.dropMismatch,
+		DropOther:    c.dropOther,
+		P50US:        p50,
+		P95US:        p95,
+		P99US:        p99,
+		Channels:     channels,
 	}
 }
 
@@ -114,7 +149,7 @@ func WriteCSV(path string, rows []Snapshot) error {
 	w := csv.NewWriter(f)
 	defer w.Flush()
 
-	head := []string{"timestamp", "mode", "transport", "target_pps", "achieved_pps", "tx", "rx", "drop", "p50_us", "p95_us", "p99_us", "channels"}
+	head := []string{"timestamp", "mode", "transport", "target_pps", "achieved_pps", "tx", "rx", "drop", "drop_timeout", "drop_send_err", "drop_decode", "drop_mismatch", "drop_other", "p50_us", "p95_us", "p99_us", "channels"}
 	if err := w.Write(head); err != nil {
 		return err
 	}
@@ -128,6 +163,11 @@ func WriteCSV(path string, rows []Snapshot) error {
 			strconv.FormatUint(s.Tx, 10),
 			strconv.FormatUint(s.Rx, 10),
 			strconv.FormatUint(s.Drop, 10),
+			strconv.FormatUint(s.DropTimeout, 10),
+			strconv.FormatUint(s.DropSendErr, 10),
+			strconv.FormatUint(s.DropDecode, 10),
+			strconv.FormatUint(s.DropMismatch, 10),
+			strconv.FormatUint(s.DropOther, 10),
 			strconv.FormatInt(s.P50US, 10),
 			strconv.FormatInt(s.P95US, 10),
 			strconv.FormatInt(s.P99US, 10),
@@ -141,6 +181,6 @@ func WriteCSV(path string, rows []Snapshot) error {
 }
 
 func PrintSummary(s Snapshot) {
-	fmt.Printf("[%s] mode=%s transport=%s target_pps=%d achieved_pps=%d tx=%d rx=%d drop=%d p50=%dus p95=%dus p99=%dus channels=%d\n",
-		s.Timestamp.Format(time.RFC3339), s.Mode, s.Transport, s.TargetPPS, s.AchievedPPS, s.Tx, s.Rx, s.Drop, s.P50US, s.P95US, s.P99US, s.Channels)
+	fmt.Printf("[%s] mode=%s transport=%s target_pps=%d achieved_pps=%d tx=%d rx=%d drop=%d timeout=%d send_err=%d decode=%d mismatch=%d other=%d p50=%dus p95=%dus p99=%dus channels=%d\n",
+		s.Timestamp.Format(time.RFC3339), s.Mode, s.Transport, s.TargetPPS, s.AchievedPPS, s.Tx, s.Rx, s.Drop, s.DropTimeout, s.DropSendErr, s.DropDecode, s.DropMismatch, s.DropOther, s.P50US, s.P95US, s.P99US, s.Channels)
 }

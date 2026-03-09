@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -43,18 +44,36 @@ func (r Runner) RunLatency(ctx context.Context, payload []byte) ([]metrics.Snaps
 				return
 			}
 			defer sess.Close()
+			var ticker *time.Ticker
+			if r.RunCfg.LatencyRateLimit && r.RunCfg.PPS > 0 {
+				ppsPerWorker := max(1, r.RunCfg.PPS/workers)
+				interval := time.Second / time.Duration(ppsPerWorker)
+				if interval <= 0 {
+					interval = time.Microsecond
+				}
+				ticker = time.NewTicker(interval)
+				defer ticker.Stop()
+			}
 
 			for {
-				select {
-				case <-ctx.Done():
-					return
-				default:
+				if ticker != nil {
+					select {
+					case <-ctx.Done():
+						return
+					case <-ticker.C:
+					}
+				} else {
+					select {
+					case <-ctx.Done():
+						return
+					default:
+					}
 				}
 				next := seq.Add(1)
 				frm := wire.Frame{MsgType: wire.MsgReq, SeqID: next, SendTSNS: time.Now().UnixNano(), ChannelID: ch.ID(), Payload: payload}
 				buf, _ := frm.Encode()
 				if err := ch.Send(ctx, buf); err != nil {
-					collector.AddDrop(1)
+					collector.AddDropSendErr(1)
 					continue
 				}
 				collector.AddTx(1)
@@ -63,12 +82,20 @@ func (r Runner) RunLatency(ctx context.Context, payload []byte) ([]metrics.Snaps
 				raw, err := ch.Recv(rctx)
 				rcancel()
 				if err != nil {
-					collector.AddDrop(1)
+					if isTimeoutError(err) {
+						collector.AddDropTimeout(1)
+					} else {
+						collector.AddDrop(1)
+					}
 					continue
 				}
 				resp, err := wire.Decode(raw)
-				if err != nil || resp.MsgType != wire.MsgResp || resp.SeqID != next {
-					collector.AddDrop(1)
+				if err != nil {
+					collector.AddDropDecode(1)
+					continue
+				}
+				if resp.MsgType != wire.MsgResp || resp.SeqID != next {
+					collector.AddDropMismatch(1)
 					continue
 				}
 				collector.AddRx(1)
@@ -123,7 +150,7 @@ func (r Runner) RunFlood(ctx context.Context, payload []byte) ([]metrics.Snapsho
 					frm := wire.Frame{MsgType: wire.MsgFlood, SeqID: id, SendTSNS: time.Now().UnixNano(), ChannelID: ch.ID(), Payload: payload}
 					buf, _ := frm.Encode()
 					if err := ch.Send(ctx, buf); err != nil {
-						collector.AddDrop(1)
+						collector.AddDropSendErr(1)
 						continue
 					}
 					collector.AddTx(1)
@@ -214,4 +241,12 @@ func max(a, b int) int {
 		return a
 	}
 	return b
+}
+
+func isTimeoutError(err error) bool {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	var ne net.Error
+	return errors.As(err, &ne) && ne.Timeout()
 }

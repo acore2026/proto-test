@@ -33,3 +33,4 @@ run:
   nas_template: ""
   nas_hex: false
   recv_timeout: 1s
+  latency_rate_limit: true

@@ -104,6 +104,7 @@ func runGNB(ctx context.Context, args []string) error {
 	nasTemplate := fs.String("nas-template", "", "path to NAS payload template")
 	nasHex := fs.Bool("nas-hex", false, "template is hex text")
 	recvTimeout := fs.Duration("recv-timeout", cfg.Run.RecvTimeout, "response timeout")
+	latencyRateLimit := fs.Bool("latency-rate-limit", cfg.Run.LatencyRateLimit, "enforce --pps in latency mode")
 	nodelay := fs.Bool("nodelay", cfg.Transport.NoDelay, "enable nodelay")
 	heartbeatMS := fs.Int("heartbeat-ms", cfg.Transport.HeartbeatMS, "heartbeat interval ms")
 	alpn := fs.String("alpn", cfg.Transport.ALPN, "reserved for QUIC")
@@ -137,6 +138,7 @@ func runGNB(ctx context.Context, args []string) error {
 	cfg.Run.NASPath = *nasTemplate
 	cfg.Run.NASHex = *nasHex
 	cfg.Run.RecvTimeout = *recvTimeout
+	cfg.Run.LatencyRateLimit = *latencyRateLimit
 	cfg.Run.ChannelCount = *channels
 
 	if cfg.Transport.ConnectTimeout == 0 {
